@@ -186,12 +186,12 @@ function mockCtx(sink) {
   };
   const res = await emit("message_end", { type: "message_end", message });
   const out = res?.message ?? message;
-  assert(out.content[0].thinking === "Let me check the file. The config is wrong.", `cleaned -> ${JSON.stringify(out.content[0].thinking)}`);
+  assert(out.content[0].thinking === "The config is wrong.", `cleaned (narration dropped, content kept) -> ${JSON.stringify(out.content[0].thinking)}`);
   assert(out.content[0].thinkingSignature === "reasoning_content", "safe signature marker kept");
   assert(out.content[1].text === "Done. Hmm.", "text blocks untouched");
   assert(out.content[2].thinking === "Hmm, anthropic payload", "opaque signed thinking untouched");
   assert(out.content[3].thinking === "Hmm, redacted", "redacted thinking untouched");
-  assert(statuses.get("hmm-filter") === "hmm-filter 本轮−2", `footer counter -> ${statuses.get("hmm-filter")}`);
+  assert(statuses.get("hmm-filter") === "hmm-filter 本轮−3", `footer counter -> ${statuses.get("hmm-filter")}`);
   assert(message.content[0].thinking.startsWith("Hmm,"), "handler did not mutate the input message");
 
   console.log("\n[3] context scrubs stored history in place (deep copy)");
@@ -218,11 +218,11 @@ function mockCtx(sink) {
   const roundNotes = [];
   const { ctx: roundCtx } = mockCtx(roundNotes);
   await commands.get("hmm").handler("count", roundCtx);
-  assert(roundNotes.some((n) => n.message.includes("本轮对话: 2 处")), `round count -> ${roundNotes.at(-1)?.message.split("\n")[0]}`);
+  assert(roundNotes.some((n) => n.message.includes("本轮对话: 3 处")), `round count -> ${roundNotes.at(-1)?.message.split("\n")[0]}`);
   await emit("agent_start", { type: "agent_start" });
   await commands.get("hmm").handler("", roundCtx);
   assert(roundNotes.at(-1).message.includes("本轮对话: 0 处"), `new round resets -> ${roundNotes.at(-1).message.split("\n")[0]}`);
-  assert(roundNotes.at(-1).message.includes("上一轮: 2 处"), "previous round still reported");
+  assert(roundNotes.at(-1).message.includes("上一轮: 3 处"), "previous round still reported");
   await emit("message_end", {
     type: "message_end",
     message: { ...message, content: [{ type: "thinking", thinking: "Hmm, three.", thinkingSignature: "reasoning_content" }] },

@@ -25,14 +25,16 @@ if (signature && signature.length > 0) assistantMsg[signature] = nonEmptyThinkin
 于是模型看到的上下文里全是 "Hmm"，它就生成更多 "Hmm"——**越滚越多**，token 白烧、
 注意力被稀释。本扩展负责把它们清干净：既清刚落库的新消息，也兜底清历史。
 
-实测：一个跑了几个月的 pi 用户，78 个会话里有 45 个中招，**共 18,943 处**语气词
-（单个会话最多 8,948 处）。
+实测：一个跑了几个月的 pi 用户，78 个会话里有 45 个中招，语气词 **18,943 处**；
+此外还有 **13,000+ 行**独占一行的旁白句（`Let me run.` / `Let me do it.`），
+单个会话里同一句最多重复 486 次。这两类噪声合计从历史会话里清掉了 400 KB 字符。
 
 ## 安装
 
 ```bash
 # GitHub（推荐，可锁 tag）
-pi install git:github.com/<你的用户名>/pi-no-hemming@v1.0.0
+# npm 包名 pi-no-hemming（GitHub 仓库名可以用中文）
+pi install git:github.com/<你的用户名>/pi-no-hemming@v1.1.0
 
 # 本地目录
 pi install /absolute/path/to/pi-no-hemming
@@ -88,6 +90,8 @@ pi -e git:github.com/<你的用户名>/pi-no-hemming
   "cleanSignedThinking": false,// 见下方“签名安全”
   "safeSignatures": ["reasoning_content", "reasoning", "reasoning_text"],
   "capitalizeSentences": true, // 句首填充删掉后把首字母大写
+  "letMeLines": true,          // 删掉独占一行的旁白句：`Let me run.`
+  "dedupeLines": true,         // 折叠重复的短行（如 `Let me do it.` ×69）
   "extraTokens": [],           // 追加正则，例如 ["\\bmm+\\b"]
   "showStatus": true,          // 底栏显示 "hmm-filter 本轮−N"
   "contextScrub": true         // 每次拼上下文时都扫一遍历史（见下文“缓存”）
@@ -95,6 +99,8 @@ pi -e git:github.com/<你的用户名>/pi-no-hemming
 ```
 
 ## 清理规则
+
+### 1. 语气词（hmm 家族）
 
 * `hmm` 后面**任何** Unicode 标点/符号都会一起吃掉（不是固定列表）：
   半角 `, . ! ? : ; ...`、全角 `，。！？：；、`、各种引号括号
@@ -107,6 +113,48 @@ pi -e git:github.com/<你的用户名>/pi-no-hemming
 * 句首填充删掉后把下一句首字母大写（`Blah. Hmm！next` → `Blah. Next`）；
 * 大小写变体都算：`hmm / Hmm / HMM / hmmm`；
 * 绝不误伤：`hmm.txt`、`a/hmm/b`、`aHmm`、`` `hmm` ``（代码）都原样保留。
+
+### 2. 独占一行的旁白句（`letMeLines`）
+
+推理模型很喜欢自问自答式旁白，还爱反复写同一句：
+
+```
+Let me do that.
+
+Let me run.
+
+Let me run.
+
+Let me run.
+```
+
+这类整行只有旁白的句子会被整行删掉（首尾空白、`Now,`/`OK,`/`So` 等开头也算）：
+`Let me run.` `Let me do it.` `Now, let me verify that.` `I'll check that.` `Let me write:`
+
+**带内容的会保留内容，只掉旁白头：**
+
+| 输入 | 输出 |
+|------|------|
+| `Let me be careful: the game is vanilla. Good.` | `The game is vanilla. Good.` |
+| `Let me check the file. The config is wrong.` | `The config is wrong.` |
+| `Let me check:` + 下一行 | 下一行（并自动首字母大写） |
+| `First, let me decompress it. I'll dump the section to analyze it.` | *(整行都是旁白 → 删掉)* |
+
+**明确不碰的：**
+
+| 输入 | 原因 |
+|------|------|
+| `Let me first double-check hits has ebxSize for all 71 items in the table.` | 旁白后超过 52 字符，属于有效信息 |
+| `Let me test write permissions on various D: paths.` | 冒号后面紧跟着盘符路径 |
+| `Let me verify https://example.com works.` | URL |
+| `Let me check the file. the config is wrong.` | 第二个句子小写开头 → 判断为同一句，整行保留 |
+| `- Let me run.` / `**Let me run.**` | 列表项、加粗等 markdown 结构 |
+| 代码块里的任何内容 | `preserveCode` 保护 |
+
+### 3. 重复短行（`dedupeLines`）
+
+同一段思考里重复出现的短句只留第一处（`Let me do it.` ×69、`Good.` ×3 这类）。
+只对 4~80 字符、含字母/汉字、不含反引号、不是 `-` `#` `1.` `>` `|` 开头的行生效。
 
 ## 运行时机
 
@@ -141,9 +189,25 @@ DeepSeek / Anthropic 等是**前缀缓存**：请求前缀逐 token 匹配，历
 
 ### 开销
 
-* `quick` 预扫描（无 lookaround 的字符对扫描）——已干净文本 0.2ms / 360KB，
-  最坏单会话全量历史（820KB thinking）≈ 1ms / 次请求；
-* 正则集合按配置指纹记忆化，不会在每个 thinking 块上重复编译。
+实测（1.06 MB thinking / 480 块的**最坏**会话，`context` 钩子每次请求都要跑）：
+
+| 场景 | 耗时 |
+|------|------|
+| 冷启动首次扫描（无缓存） | 46 ms |
+| 之后每次请求（内容未变的记忆化命中） | **2.4 ms** |
+| 手工关掉 `letMeLines`+`dedupeLines` | 5.3 ms/MB |
+
+三道保障：
+
+* **内容记忆化**：按清理后的文本做键缓存（上限 4000 条 / 8 MB 字符），历史没变时不重算；
+  配置一改自动清空。这也是为什么第二次请求只要 2.4 ms；
+* **门控扫描**：用带边界的 token 正则当门（`(?<!\w)…(?![mM\w/\\]|\.\w)`），
+  已干净文本只花 4.6 ms/MB 就直接返回；早期版本用了不带边界的 `[hH][mM]` 快筛，
+  看着更便宜，实测在真实历史上 2706 次命中里只有 5 次真的需要清洗，
+  反而把完整流水线跑了 2706 遍；
+* **旁白扫描门**：整段没有 `Let me`/`I'll` 时不进逐行正则。
+
+停掉可选规则换性能：`"letMeLines": false, "dedupeLines": false`。
 
 ## 签名安全
 
@@ -195,9 +259,9 @@ node test/extension.test.cjs  # jiti 加载真实 index.ts，mock ExtensionAPI
    "bugs": { "url": "https://github.com/<你的用户名>/pi-no-hemming/issues" }
    ```
 
-2. `git init && git add -A && git commit -m "feat: 你别哼唧了 v1.0.0"`，
+2. `git init && git add -A && git commit -m "feat: 你别哼唧了 v1.1.0"`，
    然后 `git remote add origin <你的仓库>` + `git push -u origin main`；
-3. 打个 tag（pi 支持按 tag 锁定）：`git tag v1.0.0 && git push --tags`；
+3. 打个 tag（pi 支持按 tag 锁定）：`git tag v1.1.0 && git push --tags`；
 4. 想发 npm 的话：`npm publish`（包名 `pi-no-hemming`，已经带 `pi-package` keyword，
    会出现在 [pi 包画廊](https://pi.dev/packages)）。
 

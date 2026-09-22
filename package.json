@@ -1,6 +1,6 @@
 {
   "name": "pi-no-hemming",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "你别哼唧了 — strip filler interjections (Hmm / 嗯 / emm) out of pi thinking blocks so reasoning models stop echoing them back into context",
   "keywords": [
     "pi-package",

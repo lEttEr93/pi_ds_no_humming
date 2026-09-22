@@ -225,7 +225,7 @@ export default function hmmFilter(pi: ExtensionAPI) {
       `enabled: ${cfg.enabled}`,
       `config:  ${path}`,
       `matchHm=${cfg.matchHm} emm=${cfg.emmFillers} cjk=${cfg.cjkFillers} code=${cfg.preserveCode}`,
-      `contextScrub=${cfg.contextScrub} signed=${cfg.cleanSignedThinking}`,
+      `letMe=${cfg.letMeLines} dedupe=${cfg.dedupeLines} contextScrub=${cfg.contextScrub} signed=${cfg.cleanSignedThinking}`,
       `safeSigs=${cfg.safeSignatures.join(",")}`,
       `capitalize=${cfg.capitalizeSentences} status=${cfg.showStatus}`,
       `extra: ${cfg.extraTokens.join(" ") || "-"}`,
