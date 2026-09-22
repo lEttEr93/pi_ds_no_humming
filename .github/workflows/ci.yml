@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  cleaner:
+    name: cleaner tests (node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: ["22.19", "24"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # 零依赖纯逻辑测试：清理规则（.ts 由 Node 原生类型擦除执行）
+      - run: node test/cleaner.test.ts
+
+  extension:
+    name: extension hooks (jiti + real index.ts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.19"
+      - run: npm install --no-audit --no-fund
+      - run: node test/extension.test.cjs

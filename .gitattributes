@@ -1,0 +1,9 @@
+# 统一换行符，避免 Windows 贡献者把 CRLF 带进仓库
+* text=auto eol=lf
+
+# 二进制资源不参与 diff
+*.png binary
+*.jpg binary
+*.gif binary
+*.webp binary
+*.mp4 binary

@@ -1,0 +1,47 @@
+{
+  "name": "pi-no-hemming",
+  "version": "1.0.0",
+  "description": "你别哼唧了 — strip filler interjections (Hmm / 嗯 / emm) out of pi thinking blocks so reasoning models stop echoing them back into context",
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "deepseek",
+    "thinking",
+    "reasoning",
+    "reasoning_content",
+    "hmm",
+    "filter",
+    "context",
+    "prompt-cache"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "extensions",
+    "test",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.80.0"
+  },
+  "scripts": {
+    "test": "node test/cleaner.test.ts && node test/extension.test.cjs",
+    "test:cleaner": "node test/cleaner.test.ts",
+    "test:extension": "node test/extension.test.cjs",
+    "scrub": "node extensions/pi-no-hemming/scrub-sessions.ts",
+    "scrub:apply": "node extensions/pi-no-hemming/scrub-sessions.ts --apply"
+  }
+}
