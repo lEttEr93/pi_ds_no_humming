@@ -233,21 +233,6 @@ node test/extension.test.cjs  # jiti 加载真实 index.ts，mock ExtensionAPI
 
 集成测试会把 `PI_CODING_AGENT_DIR` 指到临时目录，不会碰你真实的 pi 配置。
 
-## 发布前 checklist
-
-1. 在 `package.json` 里补上仓库地址（否则 npm 只会有个提示，不影响安装）：
-
-   ```json
-   "repository": { "type": "git", "url": "git+https://github.com/<你的用户名>/pi-no-hemming.git" },
-   "homepage": "https://github.com/<你的用户名>/pi-no-hemming#readme",
-   "bugs": { "url": "https://github.com/<你的用户名>/pi-no-hemming/issues" }
-   ```
-
-2. `git init && git add -A && git commit -m "feat: 你别哼唧了 v1.1.0"`，
-   然后 `git remote add origin <你的仓库>` + `git push -u origin main`；
-3. 打个 tag（pi 支持按 tag 锁定）：`git tag v1.1.0 && git push --tags`；
-4. 想发 npm 的话：`npm publish`（包名 `pi-no-hemming`，已经带 `pi-package` keyword，
-   会出现在 [pi 包画廊](https://pi.dev/packages)）。
 
 ## License
 
