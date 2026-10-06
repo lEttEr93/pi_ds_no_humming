@@ -1,6 +1,6 @@
 # 你别哼唧了
 
-> `pi-no-hemming` — 把 pi 思考过程里的 "Hmm" 语气词清干净，让推理模型别再自己学自己。
+> `pi-no-hemming` — 把 pi 思考过程里的 "Hmm" 语气词清干净。
 
 ![pi-package](https://img.shields.io/badge/pi-package-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
@@ -12,9 +12,9 @@ Hmm, the user wants X. Hmm, the file is at Y. Hmm, let me check.
 The user wants X. The file is at Y. Let me check.
 ```
 
-## 为什么需要它
+## 为什么
 
-DeepSeek 这类推理模型喜欢每段思考开头来个 "Hmm, ..."。而 pi 在 OpenAI 兼容接口上会把历史
+DeepSeek 喜欢每段思考开头来个 "Hmm, ..."。而 pi 在 OpenAI 兼容接口上会把历史
 thinking 原样塞回下一次请求（`reasoning_content` 字段）：
 
 ```js
@@ -22,12 +22,8 @@ thinking 原样塞回下一次请求（`reasoning_content` 字段）：
 if (signature && signature.length > 0) assistantMsg[signature] = nonEmptyThinkingBlocks.map(b => b.thinking).join("\n");
 ```
 
-于是模型看到的上下文里全是 "Hmm"，它就生成更多 "Hmm"——**越滚越多**，token 白烧、
-注意力被稀释。本扩展负责把它们清干净：既清刚落库的新消息，也兜底清历史。
+于是模型看到的上下文里全是 "Hmm"，它就生成更多 "Hmm"——**越滚越多**，注意力被稀释。本扩展负责把它们清干净。
 
-实测：一个跑了几个月的 pi 用户，78 个会话里有 45 个中招，语气词 **18,943 处**；
-此外还有 **13,000+ 行**独占一行的旁白句（`Let me run.` / `Let me do it.`），
-单个会话里同一句最多重复 486 次。这两类噪声合计从历史会话里清掉了 400 KB 字符。
 
 ## 安装
 
@@ -166,12 +162,11 @@ Let me run.
 | `context` | `transformContext` → `runner.emitContext()`，位于 `streamAssistantResponse()` 里、构建 payload 之前 | **每次 LLM 请求 1 次** | 兜底：扫历史（含恢复的旧会话、其它扩展注入的消息） |
 
 也就是「每次拼接上下文时都运行」是成立的：一次回复里如果有 5 轮工具调用，
-就是 6 次请求 → `context` 钩子跑 6 次。它只改发给 provider 的那份深拷贝，不动磁盘。
+就是 6 次请求 → `context` 钩子跑 6 次。它只改发给 provider 的那份深拷贝。
 
 ## 与 prompt 缓存的关系
 
-DeepSeek / Anthropic 等是**前缀缓存**：请求前缀逐 token 匹配，历史里任何一个字节变了，
-从该位置往后全部失效。所以关键不是"改多少次"，而是"同一段文本是否永远算出同样的结果"：
+DeepSeek / Anthropic 等是**前缀缓存**：请求前缀逐 token 匹配。
 
 1. **首发出场就是干净的**。`message_end` 在消息落库前就重写好了，于是这条消息
    第一次被发出去时已经是清洗后的版本——不存在"先按原文建缓存、后面再改"的失效；
@@ -197,17 +192,6 @@ DeepSeek / Anthropic 等是**前缀缓存**：请求前缀逐 token 匹配，历
 | 之后每次请求（内容未变的记忆化命中） | **2.4 ms** |
 | 手工关掉 `letMeLines`+`dedupeLines` | 5.3 ms/MB |
 
-三道保障：
-
-* **内容记忆化**：按清理后的文本做键缓存（上限 4000 条 / 8 MB 字符），历史没变时不重算；
-  配置一改自动清空。这也是为什么第二次请求只要 2.4 ms；
-* **门控扫描**：用带边界的 token 正则当门（`(?<!\w)…(?![mM\w/\\]|\.\w)`），
-  已干净文本只花 4.6 ms/MB 就直接返回；早期版本用了不带边界的 `[hH][mM]` 快筛，
-  看着更便宜，实测在真实历史上 2706 次命中里只有 5 次真的需要清洗，
-  反而把完整流水线跑了 2706 遍；
-* **旁白扫描门**：整段没有 `Let me`/`I'll` 时不进逐行正则。
-
-停掉可选规则换性能：`"letMeLines": false, "dedupeLines": false`。
 
 ## 签名安全
 
